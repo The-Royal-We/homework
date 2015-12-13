@@ -2,36 +2,44 @@ module Assignment where
 
 import Dist
 
-unwrap :: Dist t -> [(t, Double)]
+unwrap :: Dist Double -> [(t, Double)]
 unwrap (Dist a) = a
 
 append :: [(a, Double)] -> Dist a -> Dist a
-append xs pxs = return Dist (upxs ++ xs)
+append xs pxs = Dist (upxs ++ xs)
   where
     upxs = unwrap pxs
 
-mean  :: Dist xs -> Double
-mean pxs = (sum (map snd upxs) / (realToFrac $ length upxs))
+mean  :: Dist Double -> Double
+mean pxs = (fst upxs ) * (snd upxs)
  where
    upxs = unwrap pxs
 
-dreidel = Dist [("Win", 0.25), ("Lose", 0.75)]
+{-|
+  We map our computeWin . computeLoss across our distribution
+  This effectively doubles our Dist everytime we call it
+  How do we map it 10 times
+-}
 
 dreidelDreidelDreidel :: Double -> Double -> Int -> Dist Double
-dreidelDreidelDreidel y0 p n = append (result) dreidelDreidelDreidel y1 p n+1
-  where
-    result = dreidelProbT y0 p n
-    y1 = addOrRemove y0
-dreidelDreidelDreidel y0 p 1 = getProbOfWinning
+dreidelDreidelDreidel y0 p n = dreidelDreidelDreidel' p n-1
+                                Dist ([(y0 + 10 * p * (y0), 1/4), (y0 - 10 * p * (y0), 3/4) ])
 
-dreidelProbT :: Double -> Double -> Int -> Dist Double
-dreidelProbT y0 p n = undefined
+dreidelDreidelDreidel' :: Double -> Int -> Dist Double -> Dist Double
+dreidelDreidelDreidel' p n pxs = map (computeWin p n . computeLoss p n) pxs >>= dreidelDreidelDreidel' p n-1
+dreidelDreidelDreidel' p 0 pxs = map (computeWin p n . computeLoss p n) pxs >>= return
 
-dreidelToDistString :: String -> Dist "String"
-dreidelToDistString "Nun" = Dist [("Lose", 1/4)]
-dreidelToDistString "Gimel" = Dist [("Win", 1/4)]
-dreidelToDistString "He" = Dist [("Lose", 1/4)]
-dreidelToDistString "Shin" = Dist [("Lose", 1/4)]
+computeWin :: Double -> Double -> Dist Double -> Dist Double
+computeWin y0 p currentDist = do
+  currentPot <- fst . unwrap currentDist
+  currentProbability <- snd . unwrap currentDist
+  ((currentPot + (10 * p) *(currentPot)), (currentProbability * 1/4))
+
+computeLoss :: Double -> Double -> Dist Double -> Dist Double
+computeLoss y0 p currentDist = do
+  currentPot <- fst . unwrap currentDist
+  currentProbability <- snd . unwrap currentDist
+  ((currentPot - (10 * p) *(currentPot)), (currentProbability * 3/4))
 
 main :: IO ()
-main = mapM_ putStrLn . dreidelDreidelDreidel 1000 0.5 10
+main = print $ dreidelDreidelDreidel 1000 0.5 10
