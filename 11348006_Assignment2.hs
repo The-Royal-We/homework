@@ -1,45 +1,47 @@
-module Assignment where
-
+module Assigment where
 import Dist
-
-unwrap :: Dist Double -> [(t, Double)]
-unwrap (Dist a) = a
-
-append :: [(a, Double)] -> Dist a -> Dist a
-append xs pxs = Dist (upxs ++ xs)
-  where
-    upxs = unwrap pxs
-
-mean  :: Dist Double -> Double
-mean pxs = (fst upxs ) * (snd upxs)
- where
-   upxs = unwrap pxs
-
-{-|
-  We map our computeWin . computeLoss across our distribution
-  This effectively doubles our Dist everytime we call it
-  How do we map it 10 times
--}
+import Data.Ord
+import Data.List
 
 dreidelDreidelDreidel :: Double -> Double -> Int -> Dist Double
-dreidelDreidelDreidel y0 p n = dreidelDreidelDreidel' p n-1
-                                Dist ([(y0 + 10 * p * (y0), 1/4), (y0 - 10 * p * (y0), 3/4) ])
+dreidelDreidelDreidel pot p n = do
+  dreidelDreidelDreidel' p n (distributionOfPot)
+    where
+      distributionOfPot = return pot :: Dist Double
 
 dreidelDreidelDreidel' :: Double -> Int -> Dist Double -> Dist Double
-dreidelDreidelDreidel' p n pxs = map (computeWin p n . computeLoss p n) pxs >>= dreidelDreidelDreidel' p n-1
-dreidelDreidelDreidel' p 0 pxs = map (computeWin p n . computeLoss p n) pxs >>= return
+dreidelDreidelDreidel' p 1 pxs = Dist ((computeWin pxs p) ++ (computeLoss pxs p))
+dreidelDreidelDreidel' p n pxs = dreidelDreidelDreidel' p (n-1) npxs
+  where
+    npxs = Dist ((computeWin pxs p) ++ (computeLoss pxs p))
 
-computeWin :: Double -> Double -> Dist Double -> Dist Double
-computeWin y0 p currentDist = do
-  currentPot <- fst . unwrap currentDist
-  currentProbability <- snd . unwrap currentDist
-  ((currentPot + (10 * p) *(currentPot)), (currentProbability * 1/4))
+computeWin :: Dist Double -> Double -> [(Double, Double)]
+computeWin (Dist pxs) portion = [(x + ((10 * portion) * x), p * 1/4)| (x,p) <- pxs ]
 
-computeLoss :: Double -> Double -> Dist Double -> Dist Double
-computeLoss y0 p currentDist = do
-  currentPot <- fst . unwrap currentDist
-  currentProbability <- snd . unwrap currentDist
-  ((currentPot - (10 * p) *(currentPot)), (currentProbability * 3/4))
+computeLoss :: Dist Double -> Double -> [(Double, Double)]
+computeLoss (Dist pxs) portion = [(x - (portion * x), p * 3/4) | (x,p) <- pxs ]
 
-main :: IO ()
-main = print $ dreidelDreidelDreidel 1000 0.5 10
+mean :: Dist Double -> Double
+mean (Dist pxs) = sum [(x*p) | (x,p) <- pxs]
+
+maximizePotentialReturn :: Double
+maximizePotentialReturn = maximum [ (mean $ (dreidelDreidelDreidel 1000 x 10)) | x <- [0.1,0.2..1.0]]
+
+getMaxPortionAndProbability :: (Double, Double)
+getMaxPortionAndProbability =  maximumBy (comparing snd) $ zip [0.1, 0.2 .. 1.0 ] [prExceeds 4000 $ dreidelDreidelDreidel 1000 p 10 | p <-[0.1, 0.2 .. 1.0 ]]
+
+-- Find p which maximizes prExceeds 4000 (dreidelDreidelDreidel 1000 p 10))
+maximumPortion :: Double
+maximumPortion = fst . getMaxPortionAndProbability
+
+-- What is the probability of ending up with over 4000 using that value of p?
+probabilityOfExceeding :: Double
+probabilityOfExceeding = snd . getMaxPortionAndProbability
+
+-- What is the expected (i.e., mean) amount ended up with from this p?
+meanAmountFromMaximum :: Double
+meanAmountFromMaximum = mean $ (dreidelDreidelDreidel 1000 maximumPortion 10)
+
+prExceeds :: Double -> Dist Double -> Double
+prExceeds target dist = mean $ fmap (fromIntegral . fromEnum . (>= target)) dist
+
